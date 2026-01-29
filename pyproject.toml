@@ -6,8 +6,10 @@ authors = [
     {name = "buguno",email = "brunnodesouzabezerra@gmail.com"}
 ]
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.13,<4.0"
 dependencies = [
+    "beautifulsoup4 (>=4.14.3,<5.0.0)",
+    "selenium (>=4.40.0,<5.0.0)"
 ]
 
 [tool.poetry]
@@ -21,6 +23,7 @@ build-backend = "poetry.core.masonry.api"
 ruff = "^0.14.14"
 pytest = "^9.0.2"
 pytest-cov = "^7.0.0"
+taskipy = "^1.14.1"
 
 [tool.ruff]
 line-length = 79
@@ -32,3 +35,9 @@ select = ['I', 'F', 'E', 'W', 'PL', 'PT']
 [tool.ruff.format]
 preview = true
 quote-style = 'single'
+
+[tool.taskipy.tasks]
+lint = 'ruff check'
+pre_format = 'ruff check --fix'
+format = 'ruff format'
+run = 'python src/crawler/app.py'
