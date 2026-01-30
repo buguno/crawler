@@ -1,0 +1,76 @@
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from src.crawler.core import YahooFinanceCrawler
+
+
+@pytest.fixture
+def mock_driver():
+    with patch('src.crawler.core.webdriver.Chrome') as mock_chrome:
+        driver = MagicMock()
+        mock_chrome.return_value = driver
+        yield driver
+
+
+@pytest.fixture
+def crawler(mock_driver):
+    return YahooFinanceCrawler(region='Brazil', base_url='http://test.url')
+
+
+def test_initialization(crawler):
+    assert crawler.region == 'Brazil'
+    assert crawler.base_url == 'http://test.url'
+    assert crawler.data == []
+    assert crawler.driver is not None
+
+
+def test_setup_driver_options():
+    with patch('src.crawler.core.webdriver.Chrome') as mock_chrome:
+        with patch('src.crawler.core.Options') as mock_options:
+            YahooFinanceCrawler(region='US', base_url='http://test.url')
+
+            mock_options.return_value.add_argument.assert_any_call(
+                '--no-sandbox'
+            )
+            assert mock_options.return_value.page_load_strategy == 'eager'
+
+
+def test_run_flow(crawler):
+    with (
+        patch.object(crawler, '_apply_region_filter') as mock_apply,
+        patch.object(crawler, '_set_rows_per_page_to_100') as mock_rows,
+        patch.object(crawler, '_scrape_all_pages') as mock_scrape,
+        patch.object(crawler, '_save_to_csv') as mock_save,
+    ):
+        crawler.run()
+
+        crawler.driver.get.assert_called_with('http://test.url')
+        mock_apply.assert_called_once()
+        mock_rows.assert_called_once()
+        mock_scrape.assert_called_once()
+        mock_save.assert_called_once()
+        crawler.driver.quit.assert_called_once()
+
+
+def test_save_to_csv(crawler):
+    crawler.data = [{'symbol': 'A', 'name': 'B', 'price': '10'}]
+
+    with patch('builtins.open', new_callable=MagicMock) as mock_open:
+        with patch('src.crawler.core.makedirs') as mock_makedirs:
+            with patch('src.crawler.core.path.exists', return_value=False):
+                with patch('src.crawler.core.csv.DictWriter') as mock_writer:
+                    crawler._save_to_csv()
+
+                    mock_makedirs.assert_called_with('cdn')
+                    assert mock_open.called
+
+                    mock_writer.return_value.writeheader.assert_called_once()
+                    mock_writer.return_value.writerows.assert_called_with(
+                        crawler.data
+                    )
+
+
+def test_close(crawler):
+    crawler.close()
+    crawler.driver.quit.assert_called_once()
