@@ -278,3 +278,35 @@ def test_extract_current_page(crawler):
             assert crawler.data[1]['price'] == '50.00'
 
             mock_logger.info.assert_called_with('Extracted 2 new rows.')
+
+
+def test_extract_current_page_no_thead(crawler):
+    html = """
+    <html>
+        <body>
+            <div data-testid="data-table">
+                <table>
+                    <tbody>
+                        <tr>
+                            <th>Symbol</th>
+                            <th>Name</th>
+                            <th>Price (Intraday)</th>
+                        </tr>
+                        <tr>
+                            <td>TEST3</td>
+                            <td>Test Corp</td>
+                            <td>10.00</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </body>
+    </html>
+    """
+    crawler.driver.page_source = html
+
+    with patch('src.crawler.core.WebDriverWait'):
+        crawler._extract_current_page()
+
+    assert len(crawler.data) == 1
+    assert crawler.data[0]['symbol'] == 'TEST3'
