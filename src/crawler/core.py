@@ -16,16 +16,20 @@ logger = logging.getLogger(__name__)
 
 
 class YahooFinanceCrawler:
-    def __init__(self, region: str, base_url: str):
+    def __init__(self, region: str, base_url: str, headless: bool = True):
         self.region = region
         self.base_url = base_url
+        self.headless = headless
         self.data: List[Dict[str, str]] = []
         self.driver = self._setup_driver()
 
     def _setup_driver(self) -> webdriver.Chrome:
         """Configure and return an instance of the Chrome WebDriver."""
         chrome_options = Options()
-        # chrome_options.add_argument("--headless")
+
+        if self.headless:
+            chrome_options.add_argument('--headless')
+
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument(
