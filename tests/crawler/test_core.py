@@ -205,3 +205,16 @@ def test_scrape_all_pages(crawler):
         crawler.driver.execute_script.assert_called_once_with(
             'arguments[0].click();', mock_next_btn
         )
+
+
+def test_scrape_all_pages_no_next_button(crawler):
+    crawler.driver.find_elements.return_value = []
+
+    with patch.object(crawler, '_extract_current_page') as mock_extract:
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._scrape_all_pages()
+
+            assert mock_extract.call_count == 1
+            mock_logger.info.assert_any_call(
+                'No more pages (Next button not found or disabled).'
+            )
