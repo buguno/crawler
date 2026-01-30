@@ -74,3 +74,17 @@ def test_save_to_csv(crawler):
 def test_close(crawler):
     crawler.close()
     crawler.driver.quit.assert_called_once()
+
+
+def test_run_failure(crawler):
+    crawler.driver.get.side_effect = Exception('Simulated connection error')
+
+    with patch('src.crawler.core.logger') as mock_logger:
+        with pytest.raises(Exception) as excinfo:
+            crawler.run()
+
+        assert 'Simulated connection error' in str(excinfo.value)
+
+        mock_logger.error.assert_called_once()
+
+        crawler.driver.quit.assert_called_once()
