@@ -1,6 +1,10 @@
-from os import getenv
+import csv
+import datetime
+import time
+from os import getenv, makedirs, path
 from typing import Dict, List
 
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
@@ -31,7 +35,7 @@ class YahooFinanceCrawler:
             'Safari/537.36'
         )
 
-        # Estratégia 'eager': libera o script assim que o HTML carregar
+        # 'eager' strategy: releases script as soon as HTML loads
         chrome_options.page_load_strategy = 'eager'
 
         driver = webdriver.Chrome(options=chrome_options)
@@ -49,22 +53,22 @@ class YahooFinanceCrawler:
             self.driver.get(self.BASE_URL)
 
             self._apply_region_filter()
+            self._set_rows_per_page_to_100()
+            self._scrape_all_pages()
+            self._save_to_csv()
+            print(f'Done. Saved {len(self.data)} rows to CSV.')
 
-            print('Script finished. Press Enter to close the browser...')
-            input()
-        except Exception as e:
-            print(f'An error occurred: {e}')
-            print('An error occurred. Press Enter to close the browser...')
-            input()
-            raise
+        except Exception as error:
+            print(f'An error occurred: {error}')
+            raise error
         finally:
             self.close()
 
     def _apply_region_filter(self) -> None:
-        """Apply the region filter."""
-        print(f'Trying to select region: {self.region}')
+        """Robustly applies the region filter."""
+        print(f'Attempting to select region: {self.region}')
 
-        # 1. Try to close the initial "Explore..." popup
+        # 1. Try to close initial "Explore..." popup if present
         try:
             initial_done = WebDriverWait(self.driver, 5).until(
                 EC.element_to_be_clickable((
@@ -77,7 +81,6 @@ class YahooFinanceCrawler:
         except Exception:
             pass
 
-        # 2. Click on the Region button
         print('Looking for Region button...')
         region_btn = WebDriverWait(self.driver, 15).until(
             EC.element_to_be_clickable((
@@ -88,20 +91,39 @@ class YahooFinanceCrawler:
         region_btn.click()
         print('Region button clicked.')
 
-        # 3. Wait for the search field and type the region
-        search_input = WebDriverWait(self.driver, 10).until(
-            EC.visibility_of_element_located((
-                By.CSS_SELECTOR,
-                'input[placeholder="Search..."]',
-            ))
+        print('Clearing previous selections...')
+        try:
+            # Wait for list to load
+            WebDriverWait(self.driver, 10).until(
+                EC.visibility_of_element_located((
+                    By.CSS_SELECTOR,
+                    'input[placeholder="Search..."]',
+                ))
+            )
+
+            # Find all checked checkboxes within the menu
+            checked_boxes = self.driver.find_elements(
+                By.XPATH,
+                '//div[contains(@class,"menu-surface-dialog")]//input[@type="checkbox"]',
+            )
+
+            for box in checked_boxes:
+                if box.is_selected():
+                    self.driver.execute_script('arguments[0].click();', box)
+                    print('Previous checkbox unchecked.')
+                    time.sleep(0.5)
+        except Exception as e:
+            print(f'Error while clearing selection: {e}')
+
+        # 4. Search and select the desired region
+        search_input = self.driver.find_element(
+            By.CSS_SELECTOR, 'input[placeholder="Search..."]'
         )
         search_input.clear()
         search_input.send_keys(self.region)
-        print(f"Typed '{self.region}' in the search field.")
+        print(f"Typed '{self.region}' in search box.")
 
-        # 4. Click on the specific checkbox for the region
-        # Search for the input checkbox that is inside a label with the region title
-        # or next to the region text
+        # Click the specific checkbox for the region
         try:
             checkbox = WebDriverWait(self.driver, 10).until(
                 EC.presence_of_element_located((
@@ -109,14 +131,13 @@ class YahooFinanceCrawler:
                     f'//label[contains(., "{self.region}")]//input[@type="checkbox"] | //span[contains(., "{self.region}")]/following-sibling::input[@type="checkbox"]',
                 ))
             )
-            # Force the click on the checkbox via JS
             self.driver.execute_script('arguments[0].click();', checkbox)
-            print(f"Checkbox for region '{self.region}' marked via JS.")
+            print(f"Region '{self.region}' checkbox checked via JS.")
         except Exception as e:
-            print(f'Error trying to mark checkbox: {e}')
+            print(f'Error checking checkbox: {e}')
             raise
 
-        # 5. Click on the Apply button
+        # 5. Click APPLY button
         try:
             apply_btn = WebDriverWait(self.driver, 5).until(
                 EC.element_to_be_clickable((
@@ -129,7 +150,7 @@ class YahooFinanceCrawler:
         except Exception:
             print('Apply button not found.')
 
-        # 6. Wait for the menu to close
+        # 6. Wait for menu to close
         WebDriverWait(self.driver, 10).until(
             EC.invisibility_of_element_located((
                 By.CSS_SELECTOR,
@@ -137,6 +158,175 @@ class YahooFinanceCrawler:
             ))
         )
         print('Filter applied (menu closed).')
+
+    def _set_rows_per_page_to_100(self) -> None:
+        """Changes the rows per page from default (25) to 100."""
+        print('Changing rows per page to 100...')
+        try:
+            # 1. Click on the dropdown "25"
+            rows_dropdown = WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((
+                    By.XPATH,
+                    '//span[contains(text(), "Rows per page")]/following::button[1] | //button[@title="25"]',
+                ))
+            )
+            self.driver.execute_script('arguments[0].click();', rows_dropdown)
+            print('Rows dropdown clicked.')
+
+            # 2. Click on the option "100"
+            option_100 = WebDriverWait(self.driver, 5).until(
+                EC.element_to_be_clickable((
+                    By.CSS_SELECTOR,
+                    'div[role="option"][data-value="100"]',
+                ))
+            )
+            self.driver.execute_script('arguments[0].click();', option_100)
+            print('Selected 100 rows per page via JS.')
+
+            # 3. Wait for the table to update (the button should change the title to "100")
+            WebDriverWait(self.driver, 10).until(
+                EC.presence_of_element_located((
+                    By.XPATH,
+                    '//button[@title="100"]',
+                ))
+            )
+            print('Table updated to 100 rows.')
+            time.sleep(3)  # Extra pause to ensure data is loaded
+
+        except Exception as e:
+            print(f'Could not change rows per page (sticking to default): {e}')
+
+    def _scrape_all_pages(self) -> None:
+        """Loops through all pages and scrapes data."""
+        page_num = 1
+        while True:
+            print(f'Scraping page {page_num}...')
+            self._extract_current_page()
+
+            try:
+                # Find Next button by data-testid
+                next_btn = self.driver.find_elements(
+                    By.CSS_SELECTOR, '[data-testid="next-page-button"]'
+                )
+
+                # Check if exists and enabled
+                if next_btn and next_btn[0].is_enabled():
+                    if next_btn[0].get_attribute('disabled') is not None:
+                        print('Next button is disabled. End of pages.')
+                        break
+
+                    # JS click to be safe
+                    self.driver.execute_script(
+                        'arguments[0].click();', next_btn[0]
+                    )
+                    print(
+                        f'Next button clicked. Going to page {page_num + 1}...'
+                    )
+
+                    # Wait for table reload
+                    time.sleep(3)
+                    page_num += 1
+                else:
+                    print('No more pages (Next button not found or disabled).')
+                    break
+            except Exception as e:
+                print(f'Pagination stopped: {e}')
+                break
+
+    def _extract_current_page(self) -> None:
+        """Extracts data from the currently visible table."""
+        WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located((
+                By.CSS_SELECTOR,
+                'table, [role="table"], [data-testid="data-table"]',
+            ))
+        )
+
+        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+        table = (
+            soup.find('table')
+            or soup.find(attrs={'role': 'table'})
+            or soup.find(attrs={'data-testid': 'data-table'})
+        )
+
+        if not table:
+            return
+
+        headers = []
+        header_row = table.find('thead')
+        if header_row:
+            headers = [
+                th.get_text(strip=True).lower()
+                for th in header_row.find_all(['th', 'td'])
+            ]
+        if not headers:
+            first_row = table.find('tr')
+            if first_row:
+                headers = [
+                    th.get_text(strip=True).lower()
+                    for th in first_row.find_all(['th', 'td'])
+                ]
+
+        idx_symbol = 0
+        idx_name = 1
+        idx_price = 2
+        for index, header in enumerate(headers):
+            if 'symbol' in header:
+                idx_symbol = index
+            elif 'name' in header:
+                idx_name = index
+            elif 'price' in header:
+                idx_price = index
+
+        tbody = table.find('tbody') or table
+        rows = tbody.find_all('tr')
+
+        count_before = len(self.data)
+        for row in rows:
+            cells = row.find_all(['td', 'th'])
+            if cells and cells[0].get_text(strip=True).lower() == 'symbol':
+                continue
+            if len(cells) > max(idx_symbol, idx_name, idx_price):
+                symbol = cells[idx_symbol].get_text(strip=True)
+                name = cells[idx_name].get_text(strip=True)
+                price = cells[idx_price].get_text(strip=True).replace(',', '')
+
+                # Avoid duplicates
+                if symbol and not any(
+                    data['symbol'] == symbol for data in self.data
+                ):
+                    self.data.append({
+                        'symbol': symbol,
+                        'name': name,
+                        'price': price,
+                    })
+
+        print(f'Extracted {len(self.data) - count_before} new rows.')
+
+    def _save_to_csv(self) -> None:
+        """Save self.data to a CSV file."""
+        if not self.data:
+            print('No data to save.')
+            return
+
+        output_dir = 'cdn'
+        if not path.exists(output_dir):
+            makedirs(output_dir)
+
+        current_datetime = datetime.datetime.now()
+        timestamp = int(current_datetime.timestamp())
+        filename = f'{timestamp}_yahoo_finance_crawler_{self.region.replace(" ", "_")}.csv'
+        file_path = path.join(output_dir, filename)
+
+        with open(file_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(
+                f,
+                fieldnames=['symbol', 'name', 'price'],
+                quoting=csv.QUOTE_ALL,
+            )
+            writer.writeheader()
+            writer.writerows(self.data)
+        print(f'Saved to {file_path}')
 
 
 if __name__ == '__main__':
