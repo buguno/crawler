@@ -1,35 +1,24 @@
-import argparse
 import csv
 import datetime
 import logging
 import time
-from os import getenv, makedirs, path
+from os import makedirs, path
 from typing import Dict, List
 
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-load_dotenv()
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-)
 logger = logging.getLogger(__name__)
 
 
 class YahooFinanceCrawler:
-    BASE_URL = getenv('BASE_URL')
-
-    def __init__(self, region: str):
+    def __init__(self, region: str, base_url: str):
         self.region = region
+        self.base_url = base_url
         self.data: List[Dict[str, str]] = []
         self.driver = self._setup_driver()
 
@@ -60,7 +49,7 @@ class YahooFinanceCrawler:
         """Main method that orchestrates the execution."""
         try:
             logger.info(f'Initializing crawler for region: {self.region}')
-            self.driver.get(self.BASE_URL)
+            self.driver.get(self.base_url)
 
             self._apply_region_filter()
             self._set_rows_per_page_to_100()
@@ -341,17 +330,3 @@ class YahooFinanceCrawler:
             writer.writeheader()
             writer.writerows(self.data)
         logger.info(f'Saved to {file_path}')
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Yahoo Finance Crawler')
-    parser.add_argument(
-        '--region',
-        type=str,
-        default='Brazil',
-        help='Region to filter (e.g., "United States", "Argentina")',
-    )
-    args = parser.parse_args()
-
-    crawler = YahooFinanceCrawler(region=args.region)
-    crawler.run()
