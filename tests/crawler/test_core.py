@@ -30,7 +30,6 @@ def test_setup_driver_options():
     with patch('src.crawler.core.webdriver.Chrome') as mock_chrome:
         with patch('src.crawler.core.Options') as mock_options:
             YahooFinanceCrawler(region='US', base_url='http://test.url')
-
             mock_options.return_value.add_argument.assert_any_call(
                 '--no-sandbox'
             )
@@ -54,6 +53,18 @@ def test_run_flow(crawler):
         crawler.driver.quit.assert_called_once()
 
 
+def test_run_failure(crawler):
+    crawler.driver.get.side_effect = Exception('Simulated connection error')
+
+    with patch('src.crawler.core.logger') as mock_logger:
+        with pytest.raises(Exception) as excinfo:
+            crawler.run()
+
+        assert 'Simulated connection error' in str(excinfo.value)
+        mock_logger.error.assert_called_once()
+        crawler.driver.quit.assert_called_once()
+
+
 def test_save_to_csv(crawler):
     crawler.data = [{'symbol': 'A', 'name': 'B', 'price': '10'}]
 
@@ -65,7 +76,6 @@ def test_save_to_csv(crawler):
 
                     mock_makedirs.assert_called_with('cdn')
                     assert mock_open.called
-
                     mock_writer.return_value.writeheader.assert_called_once()
                     mock_writer.return_value.writerows.assert_called_with(
                         crawler.data
@@ -77,23 +87,9 @@ def test_close(crawler):
     crawler.driver.quit.assert_called_once()
 
 
-def test_run_failure(crawler):
-    crawler.driver.get.side_effect = Exception('Simulated connection error')
-
-    with patch('src.crawler.core.logger') as mock_logger:
-        with pytest.raises(Exception) as excinfo:
-            crawler.run()
-
-        assert 'Simulated connection error' in str(excinfo.value)
-
-        mock_logger.error.assert_called_once()
-
-        crawler.driver.quit.assert_called_once()
-
-
 def test_apply_region_filter(crawler):
-    EXPECTED_JS_CALLS = 2
-    EXPECTED_WAIT_CALLS = 1
+    EXPECTED_CLICKS = 2
+    EXPECTED_CALLS = 1
 
     with patch('src.crawler.core.WebDriverWait') as mock_wait:
         mock_element = MagicMock()
@@ -101,17 +97,80 @@ def test_apply_region_filter(crawler):
 
         mock_search_input = MagicMock()
         crawler.driver.find_element.return_value = mock_search_input
-
         crawler.driver.find_elements.return_value = []
 
         crawler._apply_region_filter()
 
-        assert mock_wait.call_count >= EXPECTED_WAIT_CALLS
-
+        assert mock_wait.call_count >= EXPECTED_CALLS
         crawler.driver.find_element.assert_called_with(
             By.CSS_SELECTOR, 'input[placeholder="Search..."]'
         )
         mock_search_input.clear.assert_called_once()
         mock_search_input.send_keys.assert_called_with('Brazil')
+        assert crawler.driver.execute_script.call_count >= EXPECTED_CLICKS
 
-        assert crawler.driver.execute_script.call_count >= EXPECTED_JS_CALLS
+
+def test_apply_region_filter_clears_selection(crawler):
+    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+        mock_checkbox = MagicMock()
+        mock_checkbox.is_selected.return_value = True
+
+        crawler.driver.find_elements.side_effect = [[mock_checkbox], []]
+
+        crawler.driver.find_element.return_value = MagicMock()
+
+        crawler._apply_region_filter()
+
+        crawler.driver.execute_script.assert_any_call(
+            'arguments[0].click();', mock_checkbox
+        )
+
+
+def test_apply_region_filter_clearing_exception(crawler):
+    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+        mock_wait.side_effect = [
+            MagicMock(),
+            MagicMock(),
+            Exception('Simulated error while clearing selection'),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        ]
+
+        crawler.driver.find_element.return_value = MagicMock()
+
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._apply_region_filter()
+
+            mock_logger.warning.assert_called_with(
+                'Error while clearing selection: Simulated error while clearing selection'
+            )
+
+
+def test_set_rows_per_page_to_100(crawler):
+    EXPECTED_JS_CLICKS = 2
+    EXPECTED_CALLS = 3
+
+    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+        mock_dropdown = MagicMock()
+        mock_option_100 = MagicMock()
+        mock_updated_table = MagicMock()
+
+        mock_wait.return_value.until.side_effect = [
+            mock_dropdown,
+            mock_option_100,
+            mock_updated_table,
+        ]
+
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._set_rows_per_page_to_100()
+
+            assert mock_wait.return_value.until.call_count == EXPECTED_CALLS
+            assert (
+                crawler.driver.execute_script.call_count == EXPECTED_JS_CLICKS
+            )
+            mock_logger.info.assert_any_call(
+                'Selected 100 rows per page via JS.'
+            )
+            mock_logger.info.assert_any_call('Table updated to 100 rows.')
