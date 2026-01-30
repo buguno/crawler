@@ -4,7 +4,7 @@ from os import getenv
 
 from dotenv import load_dotenv
 
-from crawler import YahooFinanceCrawler
+from src.crawler.core import YahooFinanceCrawler
 
 load_dotenv()
 
@@ -24,6 +24,11 @@ def main():
         default='Brazil',
         help='Region to filter (e.g., "United States", "Argentina")',
     )
+    parser.add_argument(
+        '--show-browser',
+        action='store_true',
+        help='Open the browser window visually (disable headless mode)',
+    )
     args = parser.parse_args()
 
     base_url = getenv('BASE_URL')
@@ -31,7 +36,11 @@ def main():
         logger.error('BASE_URL environment variable is not set')
         return
 
-    crawler = YahooFinanceCrawler(region=args.region, base_url=base_url)
+    is_headless = not args.show_browser
+
+    crawler = YahooFinanceCrawler(
+        region=args.region, base_url=base_url, headless=is_headless
+    )
     crawler.run()
 
 
