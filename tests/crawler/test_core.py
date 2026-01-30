@@ -176,6 +176,20 @@ def test_set_rows_per_page_to_100(crawler):
             mock_logger.info.assert_any_call('Table updated to 100 rows.')
 
 
+def test_set_rows_per_page_to_100_exception(crawler):
+    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+        mock_wait.return_value.until.side_effect = Exception(
+            'Dropdown not found'
+        )
+
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._set_rows_per_page_to_100()
+
+            mock_logger.warning.assert_called_with(
+                'Could not change rows per page (sticking to default): Dropdown not found'
+            )
+
+
 def test_scrape_all_pages(crawler):
     EXPECTED_CALLS = 2
     mock_next_btn = MagicMock()
