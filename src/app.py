@@ -4,7 +4,7 @@ from os import getenv
 
 from dotenv import load_dotenv
 
-from crawler.core import YahooFinanceCrawler
+from crawler import YahooFinanceCrawler
 
 load_dotenv()
 
