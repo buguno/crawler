@@ -174,3 +174,20 @@ def test_set_rows_per_page_to_100(crawler):
                 'Selected 100 rows per page via JS.'
             )
             mock_logger.info.assert_any_call('Table updated to 100 rows.')
+
+
+def test_scrape_all_pages(crawler):
+    EXPECTED_CALLS = 2
+    mock_next_btn = MagicMock()
+    mock_next_btn.is_enabled.return_value = True
+    mock_next_btn.get_attribute.side_effect = [None, 'true']
+
+    crawler.driver.find_elements.return_value = [mock_next_btn]
+
+    with patch.object(crawler, '_extract_current_page') as mock_extract:
+        crawler._scrape_all_pages()
+
+        assert mock_extract.call_count == EXPECTED_CALLS
+        crawler.driver.execute_script.assert_called_once_with(
+            'arguments[0].click();', mock_next_btn
+        )
