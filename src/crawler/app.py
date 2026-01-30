@@ -121,8 +121,8 @@ class YahooFinanceCrawler:
                     self.driver.execute_script('arguments[0].click();', box)
                     logger.info('Previous checkbox unchecked.')
                     time.sleep(0.5)
-        except Exception as e:
-            logger.warning(f'Error while clearing selection: {e}')
+        except Exception as error:
+            logger.warning(f'Error while clearing selection: {error}')
 
         # 4. Search and select the desired region
         search_input = self.driver.find_element(
@@ -142,8 +142,8 @@ class YahooFinanceCrawler:
             )
             self.driver.execute_script('arguments[0].click();', checkbox)
             logger.info(f"Region '{self.region}' checkbox checked via JS.")
-        except Exception as e:
-            logger.error(f'Error checking checkbox: {e}')
+        except Exception as error:
+            logger.error(f'Error checking checkbox: {error}')
             raise
 
         # 5. Click APPLY button
@@ -202,9 +202,9 @@ class YahooFinanceCrawler:
             logger.info('Table updated to 100 rows.')
             time.sleep(3)  # Extra pause to ensure data is loaded
 
-        except Exception as e:
+        except Exception as error:
             logger.warning(
-                f'Could not change rows per page (sticking to default): {e}'
+                f'Could not change rows per page (sticking to default): {error}'
             )
 
     def _scrape_all_pages(self) -> None:
@@ -242,8 +242,8 @@ class YahooFinanceCrawler:
                         'No more pages (Next button not found or disabled).'
                     )
                     break
-            except Exception as e:
-                logger.error(f'Pagination stopped: {e}')
+            except Exception as error:
+                logger.error(f'Pagination stopped: {error}')
                 break
 
     def _extract_current_page(self) -> None:
