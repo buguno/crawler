@@ -1,5 +1,6 @@
 import csv
 import datetime
+import logging
 import time
 from os import getenv, makedirs, path
 from typing import Dict, List
@@ -13,6 +14,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 load_dotenv()
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S',
+)
+logger = logging.getLogger(__name__)
 
 
 class YahooFinanceCrawler:
@@ -49,24 +58,24 @@ class YahooFinanceCrawler:
     def run(self):
         """Main method that orchestrates the execution."""
         try:
-            print(f'Initializing crawler for region: {self.region}')
+            logger.info(f'Initializing crawler for region: {self.region}')
             self.driver.get(self.BASE_URL)
 
             self._apply_region_filter()
             self._set_rows_per_page_to_100()
             self._scrape_all_pages()
             self._save_to_csv()
-            print(f'Done. Saved {len(self.data)} rows to CSV.')
+            logger.info(f'Done. Saved {len(self.data)} rows to CSV.')
 
         except Exception as error:
-            print(f'An error occurred: {error}')
+            logger.error(f'An error occurred: {error}', exc_info=True)
             raise error
         finally:
             self.close()
 
     def _apply_region_filter(self) -> None:
         """Robustly applies the region filter."""
-        print(f'Attempting to select region: {self.region}')
+        logger.info(f'Attempting to select region: {self.region}')
 
         # 1. Try to close initial "Explore..." popup if present
         try:
@@ -77,11 +86,11 @@ class YahooFinanceCrawler:
                 ))
             )
             initial_done.click()
-            print('Initial popup closed.')
+            logger.info('Initial popup closed.')
         except Exception:
             pass
 
-        print('Looking for Region button...')
+        logger.info('Looking for Region button...')
         region_btn = WebDriverWait(self.driver, 15).until(
             EC.element_to_be_clickable((
                 By.XPATH,
@@ -89,9 +98,9 @@ class YahooFinanceCrawler:
             ))
         )
         region_btn.click()
-        print('Region button clicked.')
+        logger.info('Region button clicked.')
 
-        print('Clearing previous selections...')
+        logger.info('Clearing previous selections...')
         try:
             # Wait for list to load
             WebDriverWait(self.driver, 10).until(
@@ -110,10 +119,10 @@ class YahooFinanceCrawler:
             for box in checked_boxes:
                 if box.is_selected():
                     self.driver.execute_script('arguments[0].click();', box)
-                    print('Previous checkbox unchecked.')
+                    logger.info('Previous checkbox unchecked.')
                     time.sleep(0.5)
         except Exception as e:
-            print(f'Error while clearing selection: {e}')
+            logger.warning(f'Error while clearing selection: {e}')
 
         # 4. Search and select the desired region
         search_input = self.driver.find_element(
@@ -121,7 +130,7 @@ class YahooFinanceCrawler:
         )
         search_input.clear()
         search_input.send_keys(self.region)
-        print(f"Typed '{self.region}' in search box.")
+        logger.info(f"Typed '{self.region}' in search box.")
 
         # Click the specific checkbox for the region
         try:
@@ -132,9 +141,9 @@ class YahooFinanceCrawler:
                 ))
             )
             self.driver.execute_script('arguments[0].click();', checkbox)
-            print(f"Region '{self.region}' checkbox checked via JS.")
+            logger.info(f"Region '{self.region}' checkbox checked via JS.")
         except Exception as e:
-            print(f'Error checking checkbox: {e}')
+            logger.error(f'Error checking checkbox: {e}')
             raise
 
         # 5. Click APPLY button
@@ -146,9 +155,9 @@ class YahooFinanceCrawler:
                 ))
             )
             self.driver.execute_script('arguments[0].click();', apply_btn)
-            print('Apply button clicked.')
+            logger.info('Apply button clicked.')
         except Exception:
-            print('Apply button not found.')
+            logger.warning('Apply button not found.')
 
         # 6. Wait for menu to close
         WebDriverWait(self.driver, 10).until(
@@ -157,11 +166,11 @@ class YahooFinanceCrawler:
                 'input[placeholder="Search..."]',
             ))
         )
-        print('Filter applied (menu closed).')
+        logger.info('Filter applied (menu closed).')
 
     def _set_rows_per_page_to_100(self) -> None:
         """Changes the rows per page from default (25) to 100."""
-        print('Changing rows per page to 100...')
+        logger.info('Changing rows per page to 100...')
         try:
             # 1. Click on the dropdown "25"
             rows_dropdown = WebDriverWait(self.driver, 10).until(
@@ -171,7 +180,7 @@ class YahooFinanceCrawler:
                 ))
             )
             self.driver.execute_script('arguments[0].click();', rows_dropdown)
-            print('Rows dropdown clicked.')
+            logger.info('Rows dropdown clicked.')
 
             # 2. Click on the option "100"
             option_100 = WebDriverWait(self.driver, 5).until(
@@ -181,7 +190,7 @@ class YahooFinanceCrawler:
                 ))
             )
             self.driver.execute_script('arguments[0].click();', option_100)
-            print('Selected 100 rows per page via JS.')
+            logger.info('Selected 100 rows per page via JS.')
 
             # 3. Wait for the table to update (the button should change the title to "100")
             WebDriverWait(self.driver, 10).until(
@@ -190,17 +199,19 @@ class YahooFinanceCrawler:
                     '//button[@title="100"]',
                 ))
             )
-            print('Table updated to 100 rows.')
+            logger.info('Table updated to 100 rows.')
             time.sleep(3)  # Extra pause to ensure data is loaded
 
         except Exception as e:
-            print(f'Could not change rows per page (sticking to default): {e}')
+            logger.warning(
+                f'Could not change rows per page (sticking to default): {e}'
+            )
 
     def _scrape_all_pages(self) -> None:
         """Loops through all pages and scrapes data."""
         page_num = 1
         while True:
-            print(f'Scraping page {page_num}...')
+            logger.info(f'Scraping page {page_num}...')
             self._extract_current_page()
 
             try:
@@ -212,14 +223,14 @@ class YahooFinanceCrawler:
                 # Check if exists and enabled
                 if next_btn and next_btn[0].is_enabled():
                     if next_btn[0].get_attribute('disabled') is not None:
-                        print('Next button is disabled. End of pages.')
+                        logger.info('Next button is disabled. End of pages.')
                         break
 
                     # JS click to be safe
                     self.driver.execute_script(
                         'arguments[0].click();', next_btn[0]
                     )
-                    print(
+                    logger.info(
                         f'Next button clicked. Going to page {page_num + 1}...'
                     )
 
@@ -227,10 +238,12 @@ class YahooFinanceCrawler:
                     time.sleep(3)
                     page_num += 1
                 else:
-                    print('No more pages (Next button not found or disabled).')
+                    logger.info(
+                        'No more pages (Next button not found or disabled).'
+                    )
                     break
             except Exception as e:
-                print(f'Pagination stopped: {e}')
+                logger.error(f'Pagination stopped: {e}')
                 break
 
     def _extract_current_page(self) -> None:
@@ -301,12 +314,12 @@ class YahooFinanceCrawler:
                         'price': price,
                     })
 
-        print(f'Extracted {len(self.data) - count_before} new rows.')
+        logger.info(f'Extracted {len(self.data) - count_before} new rows.')
 
     def _save_to_csv(self) -> None:
         """Save self.data to a CSV file."""
         if not self.data:
-            print('No data to save.')
+            logger.warning('No data to save.')
             return
 
         output_dir = 'cdn'
@@ -326,7 +339,7 @@ class YahooFinanceCrawler:
             )
             writer.writeheader()
             writer.writerows(self.data)
-        print(f'Saved to {file_path}')
+        logger.info(f'Saved to {file_path}')
 
 
 if __name__ == '__main__':
