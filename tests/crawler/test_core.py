@@ -27,7 +27,7 @@ def test_initialization(crawler):
 
 
 def test_setup_driver_options():
-    with patch('src.crawler.core.webdriver.Chrome') as mock_chrome:
+    with patch('src.crawler.core.webdriver.Chrome'):
         with patch('src.crawler.core.Options') as mock_options:
             YahooFinanceCrawler(region='US', base_url='http://test.url')
             mock_options.return_value.add_argument.assert_any_call(
@@ -122,7 +122,7 @@ def test_apply_region_filter(crawler):
 
 
 def test_apply_region_filter_clears_selection(crawler):
-    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+    with patch('src.crawler.core.WebDriverWait'):
         mock_checkbox = MagicMock()
         mock_checkbox.is_selected.return_value = True
 
@@ -232,6 +232,8 @@ def test_scrape_all_pages_no_next_button(crawler):
 
 
 def test_extract_current_page(crawler):
+    EXPECTED_DATA = 2
+
     html_content = """
     <html>
         <body>
@@ -263,11 +265,11 @@ def test_extract_current_page(crawler):
     crawler.driver.page_source = html_content
     crawler.data = []
 
-    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+    with patch('src.crawler.core.WebDriverWait'):
         with patch('src.crawler.core.logger') as mock_logger:
             crawler._extract_current_page()
 
-            assert len(crawler.data) == 2
+            assert len(crawler.data) == EXPECTED_DATA
             assert crawler.data[0]['symbol'] == 'TEST.SA'
             assert crawler.data[0]['name'] == 'Test Company'
             assert crawler.data[0]['price'] == '1234.56'
