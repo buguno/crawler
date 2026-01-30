@@ -218,3 +218,50 @@ def test_scrape_all_pages_no_next_button(crawler):
             mock_logger.info.assert_any_call(
                 'No more pages (Next button not found or disabled).'
             )
+
+
+def test_extract_current_page(crawler):
+    html_content = """
+    <html>
+        <body>
+            <table data-testid="data-table">
+                <thead>
+                    <tr>
+                        <th>Symbol</th>
+                        <th>Name</th>
+                        <th>Price (Intraday)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>TEST.SA</td>
+                        <td>Test Company</td>
+                        <td>1,234.56</td>
+                    </tr>
+                    <tr>
+                        <td>NEW.SA</td>
+                        <td>New Company</td>
+                        <td>50.00</td>
+                    </tr>
+                </tbody>
+            </table>
+        </body>
+    </html>
+    """
+
+    crawler.driver.page_source = html_content
+    crawler.data = []
+
+    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._extract_current_page()
+
+            assert len(crawler.data) == 2
+            assert crawler.data[0]['symbol'] == 'TEST.SA'
+            assert crawler.data[0]['name'] == 'Test Company'
+            assert crawler.data[0]['price'] == '1234.56'
+
+            assert crawler.data[1]['symbol'] == 'NEW.SA'
+            assert crawler.data[1]['price'] == '50.00'
+
+            mock_logger.info.assert_called_with('Extracted 2 new rows.')
