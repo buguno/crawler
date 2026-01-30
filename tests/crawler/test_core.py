@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from selenium.webdriver.common.by import By
 
 from src.crawler.core import YahooFinanceCrawler
 
@@ -88,3 +89,29 @@ def test_run_failure(crawler):
         mock_logger.error.assert_called_once()
 
         crawler.driver.quit.assert_called_once()
+
+
+def test_apply_region_filter(crawler):
+    EXPECTED_JS_CALLS = 2
+    EXPECTED_WAIT_CALLS = 1
+
+    with patch('src.crawler.core.WebDriverWait') as mock_wait:
+        mock_element = MagicMock()
+        mock_wait.return_value.until.return_value = mock_element
+
+        mock_search_input = MagicMock()
+        crawler.driver.find_element.return_value = mock_search_input
+
+        crawler.driver.find_elements.return_value = []
+
+        crawler._apply_region_filter()
+
+        assert mock_wait.call_count >= EXPECTED_WAIT_CALLS
+
+        crawler.driver.find_element.assert_called_with(
+            By.CSS_SELECTOR, 'input[placeholder="Search..."]'
+        )
+        mock_search_input.clear.assert_called_once()
+        mock_search_input.send_keys.assert_called_with('Brazil')
+
+        assert crawler.driver.execute_script.call_count >= EXPECTED_JS_CALLS
