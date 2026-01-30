@@ -1,3 +1,4 @@
+import argparse
 import csv
 import datetime
 import logging
@@ -343,5 +344,14 @@ class YahooFinanceCrawler:
 
 
 if __name__ == '__main__':
-    crawler = YahooFinanceCrawler(region='Argentina')
+    parser = argparse.ArgumentParser(description='Yahoo Finance Crawler')
+    parser.add_argument(
+        '--region',
+        type=str,
+        default='Brazil',
+        help='Region to filter (e.g., "United States", "Argentina")',
+    )
+    args = parser.parse_args()
+
+    crawler = YahooFinanceCrawler(region=args.region)
     crawler.run()
