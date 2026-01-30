@@ -82,6 +82,17 @@ def test_save_to_csv(crawler):
                     )
 
 
+def test_save_to_csv_no_data(crawler):
+    crawler.data = []
+
+    with patch('builtins.open', new_callable=MagicMock) as mock_open:
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._save_to_csv()
+
+            mock_logger.warning.assert_called_with('No data to save.')
+            mock_open.assert_not_called()
+
+
 def test_close(crawler):
     crawler.close()
     crawler.driver.quit.assert_called_once()
