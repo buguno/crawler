@@ -137,31 +137,24 @@ class YahooFinanceCrawler:
         logger.info(f"Typed '{self.region}' in search box.")
 
         # Click the specific checkbox for the region
-        try:
-            checkbox = WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((
-                    By.XPATH,
-                    f'//label[contains(., "{self.region}")]//input[@type="checkbox"] | //span[contains(., "{self.region}")]/following-sibling::input[@type="checkbox"]',
-                ))
-            )
-            self.driver.execute_script('arguments[0].click();', checkbox)
-            logger.info(f"Region '{self.region}' checkbox checked via JS.")
-        except Exception as error:
-            logger.error(f'Error checking checkbox: {error}')
-            raise
+        checkbox = WebDriverWait(self.driver, 10).until(
+            EC.presence_of_element_located((
+                By.XPATH,
+                f'//label[contains(., "{self.region}")]//input[@type="checkbox"] | //span[contains(., "{self.region}")]/following-sibling::input[@type="checkbox"]',
+            ))
+        )
+        self.driver.execute_script('arguments[0].click();', checkbox)
+        logger.info(f"Region '{self.region}' checkbox checked via JS.")
 
         # 5. Click APPLY button
-        try:
-            apply_btn = WebDriverWait(self.driver, 5).until(
-                EC.element_to_be_clickable((
-                    By.XPATH,
-                    '//button[contains(., "Apply")]',
-                ))
-            )
-            self.driver.execute_script('arguments[0].click();', apply_btn)
-            logger.info('Apply button clicked.')
-        except Exception:
-            logger.warning('Apply button not found.')
+        apply_btn = WebDriverWait(self.driver, 5).until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                '//button[contains(., "Apply")]',
+            ))
+        )
+        self.driver.execute_script('arguments[0].click();', apply_btn)
+        logger.info('Apply button clicked.')
 
         # 6. Wait for menu to close
         WebDriverWait(self.driver, 10).until(
