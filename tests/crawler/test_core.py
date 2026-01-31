@@ -243,7 +243,22 @@ def test_scrape_all_pages(crawler):
         )
 
 
+def test_scrape_all_pages_pagination_exception(crawler):
+    crawler.driver.find_elements.side_effect = Exception(
+        'Simulated pagination error'
+    )
+
+    with patch.object(crawler, '_extract_current_page'):
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._scrape_all_pages()
+
+            mock_logger.error.assert_called_with(
+                'Pagination stopped: Simulated pagination error'
+            )
+
+
 def test_scrape_all_pages_no_next_button(crawler):
+    crawler.driver.find_elements.side_effect = None
     crawler.driver.find_elements.return_value = []
 
     with patch.object(crawler, '_extract_current_page') as mock_extract:
