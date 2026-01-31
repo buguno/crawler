@@ -91,6 +91,16 @@ class YahooFinanceCrawler:
                 '//button[contains(@class, "menuBtn") and contains(., "Region")]',
             ))
         )
+
+        # Check if the region is already selected
+        # The button text usually is "Region: United States" or similar
+        if self.region.lower() in region_btn.text.lower():
+            logger.info(
+                f"Region '{self.region}' is already selected. "
+                'Skipping filter application.'
+            )
+            return
+
         region_btn.click()
         logger.info('Region button clicked.')
 
