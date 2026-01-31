@@ -132,9 +132,34 @@ def test_apply_region_filter_clears_selection(crawler):
 
         crawler._apply_region_filter()
 
-        crawler.driver.execute_script.assert_any_call(
-            'arguments[0].click();', mock_checkbox
-        )
+
+def test_apply_region_filter_skips_when_region_already_selected(crawler):
+    region = 'Brazil'
+    crawler.region = region
+
+    with patch('src.crawler.core.WebDriverWait') as mock_wait_cls:
+        mock_wait_instance = mock_wait_cls.return_value
+
+        mock_region_btn = MagicMock()
+        mock_region_btn.text = f'Region: {region}'
+
+        mock_wait_instance.until.side_effect = [
+            Exception('Popup not found'),
+            mock_region_btn,
+        ]
+
+        with patch('src.crawler.core.logger') as mock_logger:
+            crawler._apply_region_filter()
+
+            assert region.lower() in mock_region_btn.text.lower()
+
+            mock_logger.info.assert_any_call(
+                f"Region '{region}' is already selected. Skipping filter application."
+            )
+
+            mock_region_btn.click.assert_not_called()
+
+            crawler.driver.find_element.assert_not_called()
 
 
 def test_apply_region_filter_clearing_exception(crawler):
